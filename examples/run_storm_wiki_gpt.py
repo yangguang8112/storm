@@ -25,7 +25,7 @@ from argparse import ArgumentParser
 
 sys.path.append('./src')
 from lm import OpenAIModel
-from rm import YouRM, BingSearch
+from rm import YouRM, BingSearch, PubMedRM
 from storm_wiki.engine import STORMWikiRunnerArguments, STORMWikiRunner, STORMWikiLMConfigs
 from utils import load_api_key
 
@@ -40,6 +40,7 @@ def main(args):
         'top_p': 0.9,
         'api_base': os.getenv('AZURE_API_BASE'),
         'api_version': os.getenv('AZURE_API_VERSION'),
+        'deployment_id': 'gpt-4'
     }
 
     # STORM is a LM system so different components can be powered by different models.
@@ -52,6 +53,7 @@ def main(args):
     outline_gen_lm = OpenAIModel(model='gpt-4-0125-preview', max_tokens=400, **openai_kwargs)
     article_gen_lm = OpenAIModel(model='gpt-4-0125-preview', max_tokens=700, **openai_kwargs)
     article_polish_lm = OpenAIModel(model='gpt-4-0125-preview', max_tokens=4000, **openai_kwargs)
+
 
     lm_configs.set_conv_simulator_lm(conv_simulator_lm)
     lm_configs.set_question_asker_lm(question_asker_lm)
@@ -73,6 +75,8 @@ def main(args):
         rm = BingSearch(bing_search_api=os.getenv('BING_SEARCH_API_KEY'), k=engine_args.search_top_k)
     elif args.retriever == 'you':
         rm = YouRM(ydc_api_key=os.getenv('YDC_API_KEY'), k=engine_args.search_top_k)
+    elif args.retriever == 'pubmed':
+        rm = PubMedRM(k=engine_args.search_top_k)
 
     runner = STORMWikiRunner(engine_args, lm_configs, rm)
 
@@ -97,7 +101,7 @@ if __name__ == '__main__':
                         help='Maximum number of threads to use. The information seeking part and the article generation'
                              'part can speed up by using multiple threads. Consider reducing it if keep getting '
                              '"Exceed rate limit" error when calling LM API.')
-    parser.add_argument('--retriever', type=str, choices=['bing', 'you'],
+    parser.add_argument('--retriever', type=str, choices=['bing', 'you', 'pubmed'],
                         help='The search engine API to use for retrieving information.')
     # stage of the pipeline
     parser.add_argument('--do-research', action='store_true',

@@ -157,3 +157,64 @@ class BingSearch(dspy.Retrieve):
             collected_results.append(r)
 
         return collected_results
+
+
+from langchain_community.retrievers import PubMedRetriever
+
+
+class PubMedRM(dspy.Retrieve):
+    def __init__(self, k=3, is_valid_source: Callable = None):
+        super().__init__(k=k)
+        self.usage = 0
+
+        # If not None, is_valid_source shall be a function that takes a URL and returns a boolean.
+        if is_valid_source:
+            self.is_valid_source = is_valid_source
+        else:
+            self.is_valid_source = lambda x: True
+
+    def get_usage_and_reset(self):
+        usage = self.usage
+        self.usage = 0
+
+        return {'PubMedRM': usage}
+
+    def forward(self, query_or_queries: Union[str, List[str]], exclude_urls: List[str] = []):
+        """Search with You.com for self.k top passages for query or queries
+
+        Args:
+            query_or_queries (Union[str, List[str]]): The query or queries to search for.
+            exclude_urls (List[str]): A list of urls to exclude from the search results.
+
+        Returns:
+            a list of Dicts, each dict has keys of 'description', 'snippets' (list of strings), 'title', 'url'
+        """
+        queries = (
+            [query_or_queries]
+            if isinstance(query_or_queries, str)
+            else query_or_queries
+        )
+        self.usage += len(queries)
+        url_to_results = {}
+        collected_results = []
+        retriever = PubMedRetriever()
+        
+        for query in queries:
+            try:
+                results = retriever.invoke("mixed adrenal cortical tumor")
+
+                for d in results:
+                    if self.is_valid_source(d.metadata['uid']) and d.metadata['uid'] not in exclude_urls:
+                        url_to_results[d.metadata['uid']] = {'url': d.metadata['uid'], 'title': d.metadata['title'], 'description': d.page_content}
+            except Exception as e:
+                logging.error(f'Error occurs when searching query {query}: {e}')
+
+        # valid_url_to_snippets = self.webpage_helper.urls_to_snippets(list(url_to_results.keys()))
+        collected_results = []
+        # for url in valid_url_to_snippets:
+        for url in url_to_results.keys():
+            r = url_to_results[url]
+            r['snippets'] = r['description']
+            collected_results.append(r)
+
+        return collected_results
